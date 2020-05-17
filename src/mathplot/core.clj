@@ -96,9 +96,18 @@
 (defn- make-frame []
   (frame :width 600
          :height 600
-         :content (border-panel
+         :content
+         (border-panel
+          :north (horizontal-panel :id :buttons)
+          :center (border-panel
                    :id :main
-                   :center (canvas :id :paint))))
+                   :center (canvas :id :paint)))))
+
+;; buttons
+
+(defn- make-buttons []
+  (->> [:reset :close]
+       (map #(button :id % :text (name %) :class :text))))
 
 ;; input ui
 
@@ -125,13 +134,27 @@
 (defmethod update-root-id :font-size [root _]
   (sset-class! root [:text :font] (font :size(:font-size @state))))
 
+;; action
+
+(defn- add-button-behavior [root]
+  (->>{:close (fn [e] (dispose! root))}
+      (map (fn [[k v]]
+             (listen (sget root k) :mouse-clicked v)))
+      dorun)
+  root)
+
 ;; demo
+
+(defn- build []
+  (-> (make-frame)
+      (sset! [:buttons :items] (make-buttons))
+      (update-root :input-ui :font-size)))
 
 (defn- run []
   (reset-state!)
-  (-> (make-frame)
-      (update-root :input-ui :font-size)
+  (-> (build)
       add-translate-behavior
+      add-button-behavior      
       show!))
 
 ;; (run)
