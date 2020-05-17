@@ -21,14 +21,18 @@
        (map #(apply line %))))
 
 (defmethod shape->paint :fn-plot
-  [{w :canvas-width h :canvas-height [x y] :diff} {f :f}]
-  (fn [c g]
-    (.setSize c w h)
-    (centering g w h
-               (->> (range (- (/ w 2)) (/ w 2) plot-step)
-                    (map (fn [r] [r (f r)]))
-                    (map #(map + % [x y]))
-                    (split-by #(-> % last Double/isFinite not))
-                    (mapcat coll->lines)
-                    (map #(draw g % (style :foreground (color "black"))))
-                    dorun))))
+  [{w :canvas-width h :canvas-height [x y] :diff
+    plot-range :plot-range all-range :all-range}
+   {f :f}]
+  (let [s (/ w plot-range)]
+    (fn [c g]
+      (.setSize c w h)
+      (centering g w h
+                 (->> (range (- all-range) all-range plot-step)
+                      (map (fn [r] [r (f r)]))
+                      (map #(map + % [x y]))
+                      (map #(map * % [s s]))
+                      (split-by #(-> % last Double/isFinite not))
+                      (mapcat coll->lines)
+                      (map #(draw g % (style :foreground (color "black"))))
+                      dorun)))))
