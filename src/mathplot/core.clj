@@ -30,17 +30,23 @@
 
 (defn- reset-state! [] (reset! state state-init) )
 
+(unmap update-root-id)
+
 (defmulti update-root-id
   "[root id]
 
-  Updates root in the component specified by id."
-  (fn [root id] id))
+  Returns fn that updates root in the component specified by id."
+  identity)
 
 (defn- update-root
   "Updates root according to ks. Returns root."
   [root & ks]
-  (dorun (map #(update-root-id root %) ks))
+  (->> ks
+       (map update-root-id)
+       (map (fn [f] (f root)))
+       dorun)
   root)
+  
 
 (defn- add-shapes! [& shapes]
   (swap! state update :shapes concat shapes))
@@ -59,8 +65,8 @@
     (fn [c g]
       (dorun (map (fn [paint] (paint c g)) paint-fns)))))
 
-(defmethod update-root-id :shapes [root _]
-  (sset! root [:paint :paint] (state->object @state :shapes )))
+(defmethod update-root-id :shapes [_]
+  (fn [root]  (sset! root [:paint :paint] (state->object @state :shapes ))))
 
 ;; translate
 
@@ -125,11 +131,13 @@
 (defmethod state->object :input-ui [{:keys [mode]} _]
   (get input-ui-table mode))
 
-(defmethod update-root-id :input-ui [root _]
-  (sset! root [:main :north] (state->object @state :input-ui)))
+(defmethod update-root-id :input-ui [_]
+  (fn [root]
+    (sset! root [:main :north] (state->object @state :input-ui))))
 
-(defmethod update-root-id :font-size [root _]
-  (sset-class! root [:text :font] (font :size(:font-size @state))))
+(defmethod update-root-id :font-size [ _]
+  (fn [root]
+    (sset-class! root [:text :font] (font :size(:font-size @state)))))
 
 ;; action
 
