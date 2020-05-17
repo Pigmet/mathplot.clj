@@ -10,6 +10,16 @@
   Returns paint fn of this shape."
   (fn [state-val shape] (:id shape)))
 
+;; should be in shape module?
+(defmethod shape->paint :axes  
+  [{w :canvas-width h :canvas-height [x y] :diff} _]
+  (fn [c g]
+    (let [the-style (style :foreground (color "black")) ]
+      (.setSize c w h)
+      (centering g w h
+                 (draw g (line (- w) y w y) the-style)
+                 (draw g (line x (- h) x h) the-style)))))
+
 (defn new-fn-plot [f]
   {:id :fn-plot :f f})
 
@@ -30,8 +40,8 @@
       (centering g w h
                  (->> (range (- all-range) all-range plot-step)
                       (map (fn [r] [r (f r)]))
-                      (map #(map + % [x y]))
                       (map #(map * % [s s]))
+                      (map #(map + % [x y]))
                       (split-by #(-> % last Double/isFinite not))
                       (mapcat coll->lines)
                       (map #(draw g % (style :foreground (color "black"))))

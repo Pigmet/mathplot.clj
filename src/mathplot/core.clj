@@ -18,7 +18,7 @@
 (def state-init
   {:canvas-width 500
    :canvas-height 500
-   :shapes []
+   :shapes [{:id :axes}]
    :diff [0 0]
    :mode :explicit
    :font-size 30
@@ -56,16 +56,6 @@
   Takes current state value and id ,returns corresponding object."
   (fn [state-val id] id))
 
-;; should be in shape module?
-(defmethod state->object :axes
-  [{w :canvas-width h :canvas-height [x y] :diff} _]
-  (fn [c g]
-    (let [the-style (style :foreground (color "black")) ]
-      (.setSize c w h)
-      (centering g w h
-                 (draw g (line (- w) y w y) the-style)
-                 (draw g (line x (- h) x h) the-style)))))
-
 (defmethod state->object :shapes
   [v _]
   (let [paint-fns (map #(shape->paint @state %) (:shapes @state))]
@@ -74,9 +64,6 @@
 
 (defmethod update-root-id :shapes [root _]
   (sset! root [:paint :paint] (state->object @state :shapes )))
-
-(defmethod update-root-id :axes [root _]
-  (sset! root [:paint :paint] (state->object @state :axes)))
 
 ;; translate
 
@@ -101,7 +88,7 @@
                     ret (map + (:diff @state) diff2)]
                 (swap! a assoc :diff diff1)
                 (swap! state assoc :diff ret)
-                (update-root root :axes))))
+                (update-root root :shapes))))
     root))
 
 ;; frame
