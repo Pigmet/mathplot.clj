@@ -22,6 +22,8 @@
    :diff [0 0]
    :mode :explicit
    :font-size 30
+   :plot-range 10
+   :all-range 100
    })
 
 (def state (atom state-init))
@@ -101,7 +103,6 @@
                 (swap! state assoc :diff ret)
                 (update-root root :axes))))
     root))
-
 
 ;; frame
 
