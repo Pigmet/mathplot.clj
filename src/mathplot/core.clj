@@ -2,7 +2,8 @@
   (:gen-class)
   (:use [seesaw core font color graphics])
   (:require [mathplot.parse :refer [string->fn]]
-            [mathplot.helpers :refer [unmap]]
+            [mathplot.helpers :refer [unmap centering]]
+            [mathplot.shape :refer [shape->paint new-fn-plot]]
             [swinghelp.core :refer [sset-class! sset! sget]]))
 
 (defn -main
@@ -17,8 +18,10 @@
 (def state-init
   {:canvas-width 500
    :canvas-height 500
+   :shapes []
    :diff [0 0]
    :mode :explicit
+   :font-size 30
    })
 
 (def state (atom state-init))
@@ -28,10 +31,18 @@
 
 (defn- reset-state! [] (reset! state state-init) )
 
-(defmulti update-root-id (fn [root id] id))
+(defmulti update-root-id
+  "[root id]
+
+  Updates root in the component specified by id."
+  (fn [root id] id))
 
 (defn- update-root [root & ks]
-  (dorun (map #(update-root-id root %) ks)))
+  (dorun (map #(update-root-id root %) ks))
+  root)
+
+(defn- add-shapes! [& shapes]
+  (swap! state update :shapes concat shapes))
 
 ;; state object
 
@@ -42,14 +53,6 @@
 
   Takes current state value and id ,returns corresponding object."
   (fn [state-val id] id))
-
-(defmacro centering [g-sym width-sym height-sym & body]
-  `(push ~(symbol g-sym)
-         (translate ~(symbol g-sym)
-                    (/ ~(symbol width-sym) 2)
-                    (/ ~(symbol height-sym) 2))
-         (scale ~(symbol g-sym) 1 -1)
-         ~@body))
 
 (defmethod state->object :axes
   [{w :canvas-width h :canvas-height [x y] :diff} _]
@@ -89,6 +92,7 @@
                 (update-root root :axes))))
     root))
 
+
 ;; frame
 
 (defn- make-frame []
@@ -98,12 +102,37 @@
                    :id :main
                    :center (canvas :id :paint))))
 
+;; input ui
+
+(def input-ui-table
+  {:explicit (horizontal-panel
+              :items
+              [(label :text "f(x)" :class :text)
+               (text :id :input-explicit
+                     :class :text
+                     :listen
+                     [:action
+                      (fn [e]
+                        (if-let [f (string->fn (text e))]
+                          (add-shapes!
+                           {:id :explicit :f f})
+                          (alert (format "incorrect input: %s" (text e)))))])])})
+
+(defmethod state->object :input-ui [{:keys [mode]} _]
+  (get input-ui-table mode))
+
+(defmethod update-root-id :input-ui [root _]
+  (sset! root [:main :north] (state->object @state :input-ui)))
+
+(defmethod update-root-id :font-size [root _]
+  (sset-class! root [:text :font] (font :size(:font-size @state))))
+
 ;; demo
 
 (defn- run []
   (reset-state!)
   (-> (make-frame)
-      (sset! [:paint :paint] (state->object @state :axes))
+      (update-root :input-ui :font-size)
       add-translate-behavior
       show!))
 
