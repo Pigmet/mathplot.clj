@@ -6,10 +6,7 @@
             [mathplot.shape :refer [shape->paint new-fn-plot]]
             [swinghelp.core :refer [sset-class! sset! sget]]))
 
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+;; TODO : add parameter plot 
 
 ;; state
 
@@ -39,7 +36,9 @@
   Updates root in the component specified by id."
   (fn [root id] id))
 
-(defn- update-root [root & ks]
+(defn- update-root
+  "Updates root according to ks. Returns root."
+  [root & ks]
   (dorun (map #(update-root-id root %) ks))
   root)
 
@@ -47,8 +46,6 @@
   (swap! state update :shapes concat shapes))
 
 ;; state object
-
-;;(unmap state->object)
 
 (defmulti state->object
   "[state-val id]
@@ -145,12 +142,12 @@
       dorun)
   root)
 
-;; demo
+;; main 
 
 (defn- build []
   (-> (make-frame)
       (sset! [:buttons :items] (make-buttons))
-      (update-root :input-ui :font-size)))
+      (update-root :input-ui :font-size :shapes)))
 
 (defn- run []
   (reset-state!)
@@ -159,4 +156,7 @@
       add-button-behavior      
       show!))
 
-;; (run)
+(defn -main
+  "I don't do a whole lot ... yet."
+  [& args]
+  (run))
