@@ -1,10 +1,14 @@
 (ns mathplot.shape
-  (:use [seesaw graphics])
-  (:require [mathplot.helpers :refer [split-by]]))
+  (:use [seesaw color  graphics])
+  (:require [mathplot.helpers :refer [split-by centering]]))
 
 (def plot-step 0.1)
 
-(defmulti shape->paint (fn [state-val shape] (:id shape)))
+(defmulti shape->paint
+  "[state-val shape]
+
+  Returns paint fn of this shape."
+  (fn [state-val shape] (:id shape)))
 
 (defn new-fn-plot [f]
   {:id :fn-plot :f f})
@@ -19,7 +23,12 @@
 (defmethod shape->paint :fn-plot
   [{w :canvas-width h :canvas-height [x y] :diff} {f :f}]
   (fn [c g]
-    (->> (range (- (/ w 2)) (/ w 2) plot-step)
-         (map (fn [r] [r (f r)]))
-         (split-by #(-> % last Double/isFinite not))
-         (mapcat coll->lines))))
+    (.setSize c w h)
+    (centering g w h
+               (->> (range (- (/ w 2)) (/ w 2) plot-step)
+                    (map (fn [r] [r (f r)]))
+                    (map #(map + % [x y]))
+                    (split-by #(-> % last Double/isFinite not))
+                    (mapcat coll->lines)
+                    (map #(draw g % (style :foreground (color "black"))))
+                    dorun))))

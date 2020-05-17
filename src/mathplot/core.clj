@@ -54,6 +54,7 @@
   Takes current state value and id ,returns corresponding object."
   (fn [state-val id] id))
 
+;; should be in shape module?
 (defmethod state->object :axes
   [{w :canvas-width h :canvas-height [x y] :diff} _]
   (fn [c g]
@@ -62,6 +63,15 @@
       (centering g w h
                  (draw g (line (- w) y w y) the-style)
                  (draw g (line x (- h) x h) the-style)))))
+
+(defmethod state->object :shapes
+  [v _]
+  (let [paint-fns (map #(shape->paint @state %) (:shapes @state))]
+    (fn [c g]
+      (dorun (map (fn [paint] (paint c g)) paint-fns)))))
+
+(defmethod update-root-id :shapes [root _]
+  (sset! root [:paint :paint] (state->object @state :shapes )))
 
 (defmethod update-root-id :axes [root _]
   (sset! root [:paint :paint] (state->object @state :axes)))
@@ -105,18 +115,18 @@
 ;; input ui
 
 (def input-ui-table
-  {:explicit (horizontal-panel
-              :items
-              [(label :text "f(x)" :class :text)
-               (text :id :input-explicit
-                     :class :text
-                     :listen
-                     [:action
-                      (fn [e]
-                        (if-let [f (string->fn (text e))]
-                          (add-shapes!
-                           {:id :explicit :f f})
-                          (alert (format "incorrect input: %s" (text e)))))])])})
+  (let [input-explicit (fn [e]
+                         (if-let [f (string->fn (text e))]
+                           (do (add-shapes! (new-fn-plot f ))
+                               (update-root (to-root e) :shapes))
+                           (alert (format "incorrect input: %s" (text e)))))]
+    {:explicit (horizontal-panel
+                :items
+                [(label :text "f(x)" :class :text)
+                 (text :id :input-explicit
+                       :class :text
+                       :listen
+                       [:action input-explicit])])}))
 
 (defmethod state->object :input-ui [{:keys [mode]} _]
   (get input-ui-table mode))
