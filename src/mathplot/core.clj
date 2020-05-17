@@ -137,7 +137,9 @@
 ;; action
 
 (defn- add-button-behavior [root]
-  (->>{:close (fn [e] (dispose! root))}
+  (->>{:close (fn [e] (dispose! root))
+       :reset (fn [e] (reset-state!)
+                (update-root root :shapes))}
       (map (fn [[k v]]
              (listen (sget root k) :mouse-clicked v)))
       dorun)
