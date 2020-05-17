@@ -12,10 +12,13 @@
 
 ;; state
 
+(def plot-modes #{:explicit :parameter})
+
 (def state-init
   {:canvas-width 500
    :canvas-height 500
    :diff [0 0]
+   :mode :explicit
    })
 
 (def state (atom state-init))
@@ -24,6 +27,11 @@
   (reset! state (merge @state (select-keys state-init ks))))
 
 (defn- reset-state! [] (reset! state state-init) )
+
+(defmulti update-root-id (fn [root id] id))
+
+(defn- update-root [root & ks]
+  (dorun (map #(update-root-id root %) ks)))
 
 ;; state object
 
@@ -43,15 +51,43 @@
          (scale ~(symbol g-sym) 1 -1)
          ~@body))
 
-(defmethod state->object :axes [{w :canvas-width h :canvas-height } _]
+(defmethod state->object :axes
+  [{w :canvas-width h :canvas-height [x y] :diff} _]
   (fn [c g]
     (let [the-style (style :foreground (color "black")) ]
       (.setSize c w h)
-      (push g
-            (translate g (/ w 2) (/ h 2))
-            (scale g 1 -1)
-            (draw g (line (- w) 0 w 0) the-style)
-            (draw g (line 0 (- h) 0 h) the-style)))))
+      (centering g w h
+                 (draw g (line (- w) y w y) the-style)
+                 (draw g (line x (- h) x h) the-style)))))
+
+(defmethod update-root-id :axes [root _]
+  (sset! root [:paint :paint] (state->object @state :axes)))
+
+;; translate
+
+(defn- get-pos [e] [(.getX e)(.getY e)])
+
+(defn- add-translate-behavior [root]
+  (let [a (atom {:start [0 0] :end [0 0] :diff [0 0]})]
+    (listen (sget root :paint)
+            :mouse-pressed
+            (fn [e]
+              (swap! a assoc :start (get-pos e) :end (get-pos e)
+                     :diff [0 0]))
+            :mouse-dragged
+            (fn [e]
+              (swap! a assoc :end (get-pos e))
+              (let [{:keys [start end]} @a
+                    flip-y (fn [[x y]] [x ( - y)])
+                    start (flip-y start)
+                    end (flip-y end)
+                    diff1 (map - end start)
+                    diff2 (map - (map - end start) (:diff @a) )
+                    ret (map + (:diff @state) diff2)]
+                (swap! a assoc :diff diff1)
+                (swap! state assoc :diff ret)
+                (update-root root :axes))))
+    root))
 
 ;; frame
 
@@ -62,10 +98,13 @@
                    :id :main
                    :center (canvas :id :paint))))
 
-(comment
+;; demo
 
+(defn- run []
+  (reset-state!)
   (-> (make-frame)
       (sset! [:paint :paint] (state->object @state :axes))
-      show!)
+      add-translate-behavior
+      show!))
 
-  )
+;; (run)
