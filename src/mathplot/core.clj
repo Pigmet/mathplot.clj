@@ -3,7 +3,7 @@
   (:use [seesaw core font color graphics])
   (:require [mathplot.parse :refer [string->fn]]
             [mathplot.helpers :refer [unmap centering]]
-            [mathplot.shape :refer [shape->paint new-fn-plot]]
+            [mathplot.shape :refer [shape->paint new-fn-plot new-parameter-plot]]
             [swinghelp.core :refer [sset-class! sset! sget]]))
 
 ;; TODO : add parameter plot 
@@ -46,7 +46,7 @@
        (map (fn [f] (f root)))
        dorun)
   root)
-  
+
 
 (defn- add-shapes! [& shapes]
   (swap! state update :shapes concat shapes))
@@ -114,19 +114,47 @@
 
 ;; input ui
 
+(defn- input-explicit [e]
+  [e]
+  (if-let [f (string->fn (text e))]
+    (do (add-shapes! (new-fn-plot f ))
+        (update-root (to-root e) :shapes))
+    (alert (format "incorrect input: %s" (text e)))))
+
+(defn- input-parameter [e]
+  (let [root (to-root e)
+        xfn-s (sget root [:xfn :text])
+        yfn-s (sget root [:yfn :text])
+        xfn (string->fn xfn-s)
+        yfn (string->fn yfn-s)]
+    (println xfn-s yfn-s)
+    (if (and xfn yfn)
+      (do
+        (add-shapes! (new-parameter-plot xfn yfn))
+        (update-root root :shapes))
+      (alert (format "incorrect input: xfn %s, yfn %s" xfn-s yfn-s)))))
+
 (def input-ui-table
-  (let [input-explicit (fn [e]
-                         (if-let [f (string->fn (text e))]
-                           (do (add-shapes! (new-fn-plot f ))
-                               (update-root (to-root e) :shapes))
-                           (alert (format "incorrect input: %s" (text e)))))]
-    {:explicit (horizontal-panel
-                :items
-                [(label :text "f(x)" :class :text)
-                 (text :id :input-explicit
-                       :class :text
-                       :listen
-                       [:action input-explicit])])}))
+  {:explicit
+   (horizontal-panel
+    :items
+    [(label :text "f(x)" :class :text)
+     (text :id :input-explicit
+           :class :text
+           :listen
+           [:action input-explicit])])
+   :parameter
+   (vertical-panel
+    :items
+    (->> [["x" :xfn] ["y" :yfn]]
+         (map (fn [[s id]]
+                (horizontal-panel
+                 :items
+                 [(label :text s :class :text)
+                  (text :id id :class :text
+                        :listen
+                        [:action input-parameter])])))))})
+
 
 (defmethod state->object :input-ui [{:keys [mode]} _]
   (get input-ui-table mode))
@@ -168,3 +196,15 @@
   "I don't do a whole lot ... yet."
   [& args]
   (run))
+
+(comment
+
+  (do
+    (swap! state assoc :mode :parameter)
+    (-> (build)
+        add-translate-behavior
+        add-button-behavior      
+        show!))
+
+  )
+

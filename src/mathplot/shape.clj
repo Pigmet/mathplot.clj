@@ -46,3 +46,27 @@
                       (mapcat coll->lines)
                       (map #(draw g % (style :foreground (color "black"))))
                       dorun)))))
+
+(defn new-parameter-plot [xfn yfn]
+  {:id :parameter :xfn xfn :yfn yfn})
+
+(defmethod shape->paint :parameter
+  [{w :canvas-width h :canvas-height [x y] :diff
+    plot-range :plot-range all-range :all-range}
+   {xfn :xfn yfn :yfn col :color strk :stroke
+    :or {col "black" strk 1} }]
+  (let [s (/ w plot-range)
+        styl (style :foreground (color col) :stroke strk)]
+    (fn [c g]
+      (.setSize c w h)
+      (centering g w h
+                 (->> (range (- all-range) all-range plot-step)
+                      (map (fn [r] [(xfn r) (yfn r)]))
+                      (map #(map * % [s s]))
+                      (map #(map + % [x y]))
+                      coll->lines
+                      (map #(draw g % styl))
+                      dorun
+                      )))))
+
+
