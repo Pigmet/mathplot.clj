@@ -47,7 +47,6 @@
        dorun)
   root)
 
-
 (defn- add-shapes! [& shapes]
   (swap! state update :shapes concat shapes))
 
@@ -68,7 +67,7 @@
 (defmethod update-root-id :shapes [_]
   (fn [root]  (sset! root [:paint :paint] (state->object @state :shapes ))))
 
-;; translate
+;; translate yay yay yay 
 
 (defn- get-pos [e] [(.getX e)(.getY e)])
 
@@ -101,10 +100,14 @@
          :height 600
          :content
          (border-panel
-          :north (horizontal-panel :id :buttons)
-          :center (border-panel
-                   :id :main
-                   :center (canvas :id :paint)))))
+          :north
+          (vertical-panel
+           :items [(horizontal-panel :id :mode-select)
+                   (horizontal-panel :id :buttons)])
+          :center
+          (border-panel
+           :id :main
+           :center (canvas :id :paint)))))
 
 ;; buttons
 
@@ -113,6 +116,21 @@
        (map #(button :id % :text (name %) :class :text))))
 
 ;; input ui
+
+(defn- mode-select-part []
+  (let [group (button-group)
+        panel (horizontal-panel
+               :items (->> plot-modes
+                           (map #(radio :text (name %)
+                                        :class :text
+                                        :group group))))]
+    (listen group :action
+            (fn [e]
+              (let [mode (-> e selection text keyword)
+                    root (to-root e)]
+                (swap! state assoc :mode mode)
+                (update-root root :input-ui))))
+    panel))
 
 (defn- input-explicit [e]
   [e]
@@ -183,6 +201,7 @@
 (defn- build []
   (-> (make-frame)
       (sset! [:buttons :items] (make-buttons))
+      (sset! [:mode-select :items] [(mode-select-part)])
       (update-root :input-ui :font-size :shapes)))
 
 (defn- run []
@@ -197,6 +216,7 @@
   [& args]
   (run))
 
+
 (comment
 
   (do
@@ -208,3 +228,4 @@
 
   )
 
+;; (run)
