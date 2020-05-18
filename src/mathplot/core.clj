@@ -107,6 +107,7 @@
           :center
           (border-panel
            :id :main
+           :north (vertical-panel :id :input-part)
            :center (canvas :id :paint)))))
 
 ;; buttons
@@ -116,21 +117,6 @@
        (map #(button :id % :text (name %) :class :text))))
 
 ;; input ui
-
-(defn- mode-select-part []
-  (let [group (button-group)
-        panel (horizontal-panel
-               :items (->> plot-modes
-                           (map #(radio :text (name %)
-                                        :class :text
-                                        :group group))))]
-    (listen group :action
-            (fn [e]
-              (let [mode (-> e selection text keyword)
-                    root (to-root e)]
-                (swap! state assoc :mode mode)
-                (update-root root :input-ui))))
-    panel))
 
 (defn- input-explicit [e]
   [e]
@@ -154,36 +140,48 @@
 
 (def input-ui-table
   {:explicit
-   (horizontal-panel
-    :items
-    [(label :text "f(x)" :class :text)
-     (text :id :input-explicit
-           :class :text
-           :listen
-           [:action input-explicit])])
+   [(horizontal-panel :items [(label :text "f(x)" :class :text)
+                              (text :id :input-explicit
+                                    :class :text
+                                    :listen
+                                    [:action input-explicit])])]
    :parameter
-   (vertical-panel
-    :items
-    (->> [["x" :xfn] ["y" :yfn]]
-         (map (fn [[s id]]
-                (horizontal-panel
-                 :items
-                 [(label :text s :class :text)
-                  (text :id id :class :text
-                        :listen
-                        [:action input-parameter])])))))})
+   [(vertical-panel
+     :items (->> [["x" :xfn] ["y" :yfn]]
+                 (map (fn [[s id]]
+                        (horizontal-panel
+                         :items
+                         [(label :text s :class :text)
+                          (text :id id :class :text
+                                :listen
+                                [:action input-parameter])])))))]})
 
+
+(defn- mode-select-part []
+  (let [group (button-group)
+        panel (horizontal-panel
+               :items (->> plot-modes
+                           (map #(radio :text (name %)
+                                        :class :text
+                                        :group group))))]
+    (listen group :action
+            (fn [e]
+              (let [mode (-> group selection text keyword)]
+                (swap! state assoc :mode mode)
+                (update-root (to-root e) :input-ui :font-size))))
+    panel))
 
 (defmethod state->object :input-ui [{:keys [mode]} _]
   (get input-ui-table mode))
 
 (defmethod update-root-id :input-ui [_]
   (fn [root]
-    (sset! root [:main :north] (state->object @state :input-ui))))
+    (sset! root [:input-part :items] (state->object @state :input-ui))))
 
 (defmethod update-root-id :font-size [ _]
   (fn [root]
-    (sset-class! root [:text :font] (font :size(:font-size @state)))))
+    (sset-class! root [:text :font]
+                 (font :size (:font-size @state)))))
 
 ;; action
 
