@@ -63,13 +63,18 @@
   (fn [state-val id] id))
 
 (defmethod state->object :shapes
-  [v _]
-  (let [paint-fns (map #(shape->paint @state %) (:shapes @state))]
+  [{:keys [shapes] :as state-val} _]
+  (let [paint-fns (map #(shape->paint state-val %) shapes)]
     (fn [c g]
       (dorun (map (fn [paint] (paint c g)) paint-fns)))))
 
 (defmethod update-root-id :shapes [_]
   (fn [root]  (sset! root [:paint :paint] (state->object @state :shapes ))))
+
+
+(defmethod update-root-id :display [_]
+  (fn [root]
+    (let [{:keys [shapes]} @state])))
 
 ;; translate 
 
@@ -108,6 +113,7 @@
           (vertical-panel
            :items [(horizontal-panel :id :mode-select)
                    (horizontal-panel :id :buttons)])
+          :east (vertical-panel :id :display)
           :center
           (border-panel
            :id :main
