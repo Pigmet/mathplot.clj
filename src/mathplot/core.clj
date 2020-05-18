@@ -224,16 +224,3 @@
   [& args]
   (run))
 
-
-(comment
-
-  (do
-    (swap! state assoc :mode :parameter)
-    (-> (build)
-        add-translate-behavior
-        add-button-behavior      
-        show!))
-
-  )
-
-;; (run)
