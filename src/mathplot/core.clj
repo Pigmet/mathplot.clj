@@ -2,9 +2,11 @@
   (:gen-class)
   (:use [seesaw core font color graphics])
   (:require [mathplot.parse :refer [string->fn]]
-            [mathplot.helpers :refer [unmap centering]]
-            [mathplot.shape :refer [shape->paint new-fn-plot new-parameter-plot]]
+            [mathplot.helpers :refer [unmap centering rand-color]]
+            [mathplot.shape :refer
+             [shape->paint new-fn-plot new-parameter-plot]]
             [swinghelp.core :refer [sset-class! sset! sget]]))
+
 
 ;; TODO : add parameter plot 
 
