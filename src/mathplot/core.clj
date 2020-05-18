@@ -67,7 +67,7 @@
 (defmethod update-root-id :shapes [_]
   (fn [root]  (sset! root [:paint :paint] (state->object @state :shapes ))))
 
-;; translate yay yay yay 
+;; translate 
 
 (defn- get-pos [e] [(.getX e)(.getY e)])
 
