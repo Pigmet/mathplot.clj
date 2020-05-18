@@ -23,6 +23,7 @@
    :font-size 30
    :plot-range 10
    :all-range 100
+   :stroke 3
    })
 
 (def state (atom state-init))
@@ -50,7 +51,8 @@
   root)
 
 (defn- add-shapes! [& shapes]
-  (swap! state update :shapes concat shapes))
+  (let [shapes (map #(assoc % :color (rand-color)) shapes)]
+    (swap! state update :shapes concat shapes)))
 
 ;; state object
 
