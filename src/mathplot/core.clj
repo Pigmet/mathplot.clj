@@ -33,194 +33,94 @@
 
 (defn- reset-state! [] (reset! state state-init) )
 
-(unmap update-root-id)
+(defn- add-shapes! [& args]
+  (swap! state update :shapes concat args))
 
-(defmulti update-root-id
-  "[root id]
-
-  Returns fn that updates root in the component specified by id."
-  identity)
-
-(defn- update-root
-  "Updates root according to ks. Returns root."
-  [root & ks]
-  (->> ks
-       (map update-root-id)
-       (map (fn [f] (f root)))
-       dorun)
-  root)
-
-(defn- add-shapes! [& shapes]
-  (let [shapes (map #(assoc % :color (rand-color)) shapes)]
-    (swap! state update :shapes concat shapes)))
-
-;; state object
-
-(defmulti state->object
-  "[state-val id]
-
-  Takes current state value and id ,returns corresponding object."
-  (fn [state-val id] id))
-
-(defmethod state->object :shapes
-  [{:keys [shapes] :as state-val} _]
-  (let [paint-fns (map #(shape->paint state-val %) shapes)]
-    (fn [c g]
-      (dorun (map (fn [paint] (paint c g)) paint-fns)))))
-
-(defmethod update-root-id :shapes [_]
-  (fn [root]  (sset! root [:paint :paint] (state->object @state :shapes ))))
-
-
-(defmethod update-root-id :display [_]
-  (fn [root]
-    (let [{:keys [shapes]} @state])))
-
-;; translate 
-
-(defn- get-pos [e] [(.getX e)(.getY e)])
-
-(defn- add-translate-behavior [root]
-  (let [a (atom {:start [0 0] :end [0 0] :diff [0 0]})]
-    (listen (sget root :paint)
-            :mouse-pressed
-            (fn [e]
-              (swap! a assoc :start (get-pos e) :end (get-pos e)
-                     :diff [0 0]))
-            :mouse-dragged
-            (fn [e]
-              (swap! a assoc :end (get-pos e))
-              (let [{:keys [start end]} @a
-                    flip-y (fn [[x y]] [x ( - y)])
-                    start (flip-y start)
-                    end (flip-y end)
-                    diff1 (map - end start)
-                    diff2 (map - (map - end start) (:diff @a) )
-                    ret (map + (:diff @state) diff2)]
-                (swap! a assoc :diff diff1)
-                (swap! state assoc :diff ret)
-                (update-root root :shapes))))
-    root))
-
-;; frame
+;;  frame
 
 (defn- make-frame []
-  (frame :width 600
-         :height 600
-         :content
-         (border-panel
-          :north
-          (vertical-panel
-           :items [(horizontal-panel :id :mode-select)
-                   (horizontal-panel :id :buttons)])
-          :east (vertical-panel :id :display)
-          :center
-          (border-panel
-           :id :main
-           :north (vertical-panel :id :input-part)
-           :center (canvas :id :paint)))))
+  (frame :width 800
+         :height 800
+         :content (border-panel
+                   :north (vertical-panel
+                           :items [(horizontal-panel :id :select-mode)
+                                   (horizontal-panel :id :buttons)
+                                   (horizontal-panel :id :input)])
+                   :center (border-panel
+                            :center (canvas :id :paint)))))
 
-;; buttons
-
-(defn- make-buttons []
-  (->> [:reset :close]
-       (map #(button :id % :text (name %) :class :text))))
-
-;; input ui
-
-(defn- input-explicit [e]
-  [e]
-  (if-let [f (string->fn (text e))]
-    (do (add-shapes! (new-fn-plot f ))
-        (update-root (to-root e) :shapes))
-    (alert (format "incorrect input: %s" (text e)))))
-
-(defn- input-parameter [e]
-  (let [root (to-root e)
-        xfn-s (sget root [:xfn :text])
-        yfn-s (sget root [:yfn :text])
-        xfn (string->fn xfn-s)
-        yfn (string->fn yfn-s)]
-    (println xfn-s yfn-s)
-    (if (and xfn yfn)
-      (do
-        (add-shapes! (new-parameter-plot xfn yfn))
-        (update-root root :shapes))
-      (alert (format "incorrect input: xfn %s, yfn %s" xfn-s yfn-s)))))
-
-(def input-ui-table
-  {:explicit
-   [(horizontal-panel :items [(label :text "f(x)" :class :text)
-                              (text :id :input-explicit
-                                    :class :text
-                                    :listen
-                                    [:action input-explicit])])]
-   :parameter
-   [(vertical-panel
-     :items (->> [["x" :xfn] ["y" :yfn]]
-                 (map (fn [[s id]]
-                        (horizontal-panel
-                         :items
-                         [(label :text s :class :text)
-                          (text :id id :class :text
-                                :listen
-                                [:action input-parameter])])))))]})
-
-
-(defn- mode-select-part []
+(defn- select-mode []
   (let [group (button-group)
-        panel (horizontal-panel
-               :items (->> plot-modes
-                           (map #(radio :text (name %)
-                                        :class :text
-                                        :group group))))]
+        items (->> plot-modes
+                   (map #(radio :text (name %)
+                                :class :text
+                                :group group)))
+        panel (horizontal-panel :items items)]
     (listen group :action
             (fn [e]
               (let [mode (-> group selection text keyword)]
                 (swap! state assoc :mode mode)
-                (update-root (to-root e) :input-ui :font-size))))
-    panel))
+                (update-root (to-root e) :input :font-size))))
+    [panel]))
 
-(defmethod state->object :input-ui [{:keys [mode]} _]
-  (get input-ui-table mode))
+(defn- buttons []
+  (->> [:reset :close]
+       (map #(button :id % :text (name %) :class :text))))
 
-(defmethod update-root-id :input-ui [_]
-  (fn [root]
-    (sset! root [:input-part :items] (state->object @state :input-ui))))
+(defmulti state->widget
+  "[state-val id]"
+  (fn [state-val id] id))
 
-(defmethod update-root-id :font-size [ _]
-  (fn [root]
-    (sset-class! root [:text :font]
-                 (font :size (:font-size @state)))))
+(defmulti update-root-id
+  "[root id]
+  Returns root."
+  (fn [root id] id))
 
-;; action
+(defn- update-root [root & ids]
+  (reduce (fn [acc id] (update-root-id acc id))
+          root
+          ids))
 
-(defn- add-button-behavior [root]
-  (->>{:close (fn [e] (dispose! root))
-       :reset (fn [e] (reset-state!)
-                (update-root root :shapes))}
-      (map (fn [[k v]]
-             (listen (sget root k) :mouse-clicked v)))
-      dorun)
-  root)
+;; parseing
 
-;; main 
+(defn- parse-parameter-input [e]
+  (let [xfn-s (-> e to-root (sget [:xfn :text]))
+        yfn-s (-> e to-root (sget [:yfn :text]))
+        xfn (string->fn xfn-s)
+        yfn (string->fn yfn-s)]
+    (when (and xfn yfn) [xfn yfn])))
 
-(defn- build []
-  (-> (make-frame)
-      (sset! [:buttons :items] (make-buttons))
-      (sset! [:mode-select :items] [(mode-select-part)])
-      (update-root :input-ui :font-size :shapes)))
+(def mode->input-items
+  {:explicit
+   [(horizontal-panel
+     :items [(label :text "f(x)" :class :text)
+             (text :id :explicit :class :text
+                   :listen [:action (fn [e] (-> e text string->fn))])])]
+
+   :parameter
+   [(vertical-panel
+     :items
+     (->> [["x" :xfn] ["y" :yfn]]
+          (map (fn [[s id]]
+                 (horizontal-panel
+                  :items [(label :text s :class :text)
+                          (text :id id :class :text)])))))]})
+
+(defmethod update-root-id :input [root _]
+  (sset! root [:input :items] (-> @state :mode mode->input-items)))
+
+(defmethod update-root-id :font-size [root _]
+  (sset-class! root [:text :font] (font :size (:font-size @state))))
+
+(defn- build [root]
+  (-> root
+      (sset! [:buttons :items] (buttons))
+      (sset! [:select-mode :items] (select-mode))
+      (update-root :input :font-size)))
 
 (defn- run []
-  (reset-state!)
-  (-> (build)
-      add-translate-behavior
-      add-button-behavior      
+  (-> (make-frame)
+      build
       show!))
 
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (run))
-
+;; (run)
