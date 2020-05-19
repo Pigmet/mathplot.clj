@@ -41,15 +41,17 @@
 (defn- abs [x] (Math/abs (float x)))
 
 (defn- valid-number? [x]
-  (and (number? x)
-       (Double/isFinite x)
-       (<= (abs x) cutoff)))
+  (try
+    (and (number? x)
+         (Double/isFinite x)
+         (<= (abs x) cutoff))
+    (catch Exception ex nil)))
 
 (defmethod shape->paint :fn-plot
-  [{w :canvas-width h :canvas-height [x y] :diff
+  [{w :canvas-width h :canvas-height [x y] :diff scaling :scale
     plot-range :plot-range all-range :all-range :as state-val}
    {f :f :as shape}]
-  (let [s (/ w plot-range)
+  (let [s (/ (* w scaling) plot-range)
         styl (shape->style state-val shape)]
     (fn [c g]
       (.setSize c w h)

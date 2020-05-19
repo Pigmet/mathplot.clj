@@ -2,7 +2,7 @@
   (:gen-class)
   (:use [seesaw core font color graphics])
   (:require [mathplot.parse :refer [string->fn]]
-            [mathplot.helpers :refer [unmap centering rand-color]]
+            [mathplot.helpers :refer [unmap centering rand-color swap-when!]]
             [mathplot.shape :refer
              [shape->paint new-fn-plot new-parameter-plot]]
             [swinghelp.core :refer [sset-class! sset! sget]]))
@@ -25,6 +25,9 @@
    })
 
 (def state (atom state-init))
+
+(defn- state-ok? [{s :scale}]
+  (<= 0.1 s 10))
 
 (defn- reset-state-keys! [& ks]
   (reset! state (merge @state (select-keys state-init ks))))
@@ -93,7 +96,7 @@
            (fn [c g]
              (->> shapes
                   (map #(shape->paint @state %))
-                  (map (fn [f] ( f c g)))
+                  (map (fn [f] (f c g)))
                   dorun)))))
 
 (defn- parse-explicit-input
@@ -168,7 +171,16 @@
       (update-root :input :font-size)))
 
 (defn- add-button-behavior [root]
-  (->>{:close (fn [e] (dispose! root))}
+  (->>{:close (fn [e] (dispose! root))
+       :reset (fn [e] (reset-state!) (update-root root :paint))
+       :up (fn [e]
+             (when
+                 (swap-when! state state-ok? update :scale * 1.3)
+               (update-root root :paint)))
+       :down (fn [e]
+               (when
+                   (swap-when! state state-ok? update :scale / 1.3)
+                 (update-root root :paint)))}
       (map (fn [[k v]] (listen (sget root k) :mouse-clicked v)))
       dorun)
   root)
@@ -188,7 +200,7 @@
             (fn [e]
               (swap! a assoc :end (get-pos e))
               (let [{:keys [start end]} @a
-                    flip-y (fn [[x y]] [x ( - y)])
+                    flip-y (fn [[x y]] [x (- y)])
                     start (flip-y start)
                     end (flip-y end)
                     diff1 (map - end start)
@@ -208,3 +220,5 @@
       show!))
 
 ;; (run)
+
+

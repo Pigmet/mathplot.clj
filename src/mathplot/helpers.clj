@@ -26,11 +26,12 @@
 
 (defn is-finite? [x] (and (number? x) (Double/isFinite x)))
 
-(defn safe-swap!
-  "Updates the value of atom only if the result satisfies pred."
+(defn swap-when!
+  "Updates the value of atom like swap! if the result satisfies pred,
+  or returns nil."
   [a pred f & args]
   (let [new-val (apply f @a args)]
-    (if (pred new-val) (reset! a new-val) @a)))
+    (when (pred new-val) (reset! a new-val) )))
 
 ;; r,g,b, <= 200, a = 200 looks ok.
 
