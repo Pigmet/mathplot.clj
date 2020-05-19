@@ -80,19 +80,46 @@
 
 ;; parseing
 
+(defmethod update-root-id :paint [root _]
+  (let [{:keys [shapes]} @state]
+    (sset! root [:paint :paint]
+           (fn [c g]
+             (->> shapes
+                  (map #(shape->paint @state %))
+                  (map (fn [f] ( f c g)))
+                  dorun)))))
+
+(defn- parse-explicit-input
+  "Parse user input for explicit function, registers it
+  to state and updates graph."
+  [e]
+  (let [root (to-root e)
+        s (sget root [:explicit :text])]
+    (if-let [f (string->fn s)]
+      (do (swap! state update :shapes conj
+                 (assoc (new-fn-plot f) :color (rand-color)))
+          (update-root root :paint))
+      (alert "incorrect input"))))
+
 (defn- parse-parameter-input [e]
-  (let [xfn-s (-> e to-root (sget [:xfn :text]))
+  (let [root (to-root e)
+        xfn-s (-> e to-root (sget [:xfn :text]))
         yfn-s (-> e to-root (sget [:yfn :text]))
         xfn (string->fn xfn-s)
         yfn (string->fn yfn-s)]
-    (when (and xfn yfn) [xfn yfn])))
+    (if (and xfn yfn)
+      (do
+        (swap! state update :shapes conj
+               (assoc (new-parameter-plot xfn yfn ) :color (rand-color)))
+        (update-root root :paint ))
+      (alert "incorrect input"))))
 
 (def mode->input-items
   {:explicit
    [(horizontal-panel
      :items [(label :text "f(x)" :class :text)
              (text :id :explicit :class :text
-                   :listen [:action (fn [e] (-> e text string->fn))])])]
+                   :listen [:action parse-explicit-input])])]
 
    :parameter
    [(vertical-panel
@@ -101,7 +128,8 @@
           (map (fn [[s id]]
                  (horizontal-panel
                   :items [(label :text s :class :text)
-                          (text :id id :class :text)])))))]})
+                          (text :id id :class :text
+                                :listen [:action parse-parameter-input])])))))]})
 
 (defmethod update-root-id :input [root _]
   (sset! root [:input :items] (-> @state :mode mode->input-items)))
@@ -114,7 +142,6 @@
       (sset! [:buttons :items] (buttons))
       (sset! [:select-mode :items] (select-mode))
       (update-root :input :font-size)))
-
 
 (defn- add-button-behavior [root]
   (->>{:close (fn [e] (dispose! root))}
