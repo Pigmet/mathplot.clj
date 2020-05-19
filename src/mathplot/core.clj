@@ -7,9 +7,6 @@
              [shape->paint new-fn-plot new-parameter-plot]]
             [swinghelp.core :refer [sset-class! sset! sget]]))
 
-
-;; TODO : add parameter plot 
-
 ;; state
 
 (def plot-modes #{:explicit :parameter})
@@ -35,6 +32,20 @@
 
 (defn- add-shapes! [& args]
   (swap! state update :shapes concat args))
+
+(defmulti state->widget
+  "[state-val id]"
+  (fn [state-val id] id))
+
+(defmulti update-root-id
+  "[root id]
+  Returns root."
+  (fn [root id] id))
+
+(defn- update-root [root & ids]
+  (reduce (fn [acc id] (update-root-id acc id))
+          root
+          ids))
 
 ;;  frame
 
@@ -66,20 +77,6 @@
 (defn- buttons []
   (->> [:reset :close]
        (map #(button :id % :text (name %) :class :text))))
-
-(defmulti state->widget
-  "[state-val id]"
-  (fn [state-val id] id))
-
-(defmulti update-root-id
-  "[root id]
-  Returns root."
-  (fn [root id] id))
-
-(defn- update-root [root & ids]
-  (reduce (fn [acc id] (update-root-id acc id))
-          root
-          ids))
 
 ;; parseing
 
@@ -118,9 +115,17 @@
       (sset! [:select-mode :items] (select-mode))
       (update-root :input :font-size)))
 
+
+(defn- add-button-behavior [root]
+  (->>{:close (fn [e] (dispose! root))}
+      (map (fn [[k v]] (listen (sget root k) :mouse-clicked v)))
+      dorun)
+  root)
+
 (defn- run []
   (-> (make-frame)
       build
+      add-button-behavior
       show!))
 
 ;; (run)
