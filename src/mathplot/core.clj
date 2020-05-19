@@ -149,10 +149,40 @@
       dorun)
   root)
 
+;; translate 
+
+(defn- get-pos [e] [(.getX e)(.getY e)])
+
+(defn- add-translate-behavior [root]
+  (let [a (atom {:start [0 0] :end [0 0] :diff [0 0]})]
+    (listen (sget root :paint)
+            :mouse-pressed
+            (fn [e]
+              (swap! a assoc :start (get-pos e) :end (get-pos e)
+                     :diff [0 0]))
+            :mouse-dragged
+            (fn [e]
+              (swap! a assoc :end (get-pos e))
+              (let [{:keys [start end]} @a
+                    flip-y (fn [[x y]] [x ( - y)])
+                    start (flip-y start)
+                    end (flip-y end)
+                    diff1 (map - end start)
+                    diff2 (map - (map - end start) (:diff @a) )
+                    ret (map + (:diff @state) diff2)]
+                (swap! a assoc :diff diff1)
+                (swap! state assoc :diff ret)
+                (update-root root :paint))))
+    root))
+
 (defn- run []
+  (reset-state!)
   (-> (make-frame)
       build
       add-button-behavior
+      add-translate-behavior
       show!))
 
 ;; (run)
+
+
