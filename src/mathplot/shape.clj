@@ -17,7 +17,6 @@
   [{w :canvas-width h :canvas-height [x y] :diff} _]
   (fn [c g]
     (let [the-style (style :foreground (color "black")) ]
-      (.setSize c w h)
       (centering g w h
                  (draw g (line (- w) y w y) the-style)
                  (draw g (line x (- h) x h) the-style)))))
@@ -54,7 +53,6 @@
   (let [s (/ (* w scaling) plot-range)
         styl (shape->style state-val shape)]
     (fn [c g]
-      (.setSize c w h)
       (centering g w h
                  (->> (range (- all-range) all-range plot-step)
                       (map (fn [r] [r (f r)]))
@@ -75,7 +73,6 @@
   (let [s (/ (* w scaling) plot-range)
         styl (shape->style state-val shape)]
     (fn [c g]
-      (.setSize c w h)
       (centering g w h
                  (->> (range (- all-range) all-range plot-step)
                       (map (fn [r] [(xfn r) (yfn r)]))
@@ -100,7 +97,6 @@
         yfn (fn [x] (* ( f x) (Math/sin x)))
         interval (range 0 (* 2 Math/PI) (/ plot-step 10))]
     (fn [c g]
-      (.setSize c w h)
       (centering g w h
                  (->> interval
                       (map (fn [r] [(xfn r) (yfn r)]))
