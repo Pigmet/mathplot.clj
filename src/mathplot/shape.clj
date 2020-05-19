@@ -34,7 +34,7 @@
 
 (defn- shape->style
   "Takes state-val and shape, returns style."
-  [{strk :stroke}   {col :color  :or {col "black"}}]
+  [{strk :stroke} {col :color  :or {col "black"}}]
   (let [col (if (string? col) (color col) col )]
     (style :foreground col :stroke strk)))
 
@@ -86,5 +86,20 @@
                       (map #(draw g % styl))
                       dorun
                       )))))
+
+(defn new-polar-plot [f]
+  {:id :polar :f f})
+
+(defmethod shape->paint :polar 
+  [state-val {f :f col :color}]
+  (let [xfn (fn [x] (* (Math/cos x) (f x)))
+        yfn (fn [x] (* (Math/sin x) ( f x)))
+        shape (assoc (new-parameter-plot xfn yfn) :color col)]
+    (shape->paint state-val shape)))
+
+
+
+
+
 
 
