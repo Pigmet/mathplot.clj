@@ -16,6 +16,7 @@
    :canvas-height 500
    :shapes [{:id :axes}]
    :diff [0 0]
+   :scale 1 
    :mode :explicit
    :font-size 30
    :plot-range 10
@@ -58,7 +59,9 @@
                                    (horizontal-panel :id :buttons)
                                    (horizontal-panel :id :input)])
                    :center (border-panel
-                            :center (canvas :id :paint)))))
+                            :center (canvas :id :paint)
+                            :east (vertical-panel :id :display)
+                            :south (horizontal-panel :id :scaling)))))
 
 (defn- select-mode []
   (let [group (button-group)
@@ -75,8 +78,12 @@
     [panel]))
 
 (defn- buttons []
-  (->> [:reset :close]
-       (map #(button :id % :text (name %) :class :text))))
+  (let [coll1   (->> [:reset :close]
+                     (map #(button :id % :text (name %) :class :text)))
+        coll2   (->> [["+" :up] ["-" :down]]
+                     (map (fn [[s id]]
+                            (button :text s :class :text :id id))))]
+    (concat coll1 coll2)))
 
 ;; parseing
 
@@ -97,8 +104,10 @@
         s (sget root [:explicit :text])]
     (if-let [f (string->fn s)]
       (do (swap! state update :shapes conj
-                 (assoc (new-fn-plot f) :color (rand-color)))
-          (update-root root :paint))
+                 (assoc (new-fn-plot f)
+                        :color (rand-color)
+                        :label (format "f(x)=%s" s)))
+          (update-root root :paint :display))
       (alert "incorrect input"))))
 
 (defn- parse-parameter-input [e]
@@ -110,9 +119,24 @@
     (if (and xfn yfn)
       (do
         (swap! state update :shapes conj
-               (assoc (new-parameter-plot xfn yfn ) :color (rand-color)))
-        (update-root root :paint ))
+               (assoc (new-parameter-plot xfn yfn )
+                      :color (rand-color)
+                      :label (format "x=%s, y=%s" xfn-s yfn-s)))
+        (update-root root :paint :display))
       (alert "incorrect input"))))
+
+;; display
+
+(defmethod update-root-id :display [root _]
+  (let [items (->> @state
+                   :shapes
+                   (map (fn [{s :label col :color}]
+                          (doto (label :text s :class :text)
+                            (.setForeground col)))))]
+    (sset! root [:display :items] items)
+    (update-root root :font-size)))
+
+;; switch mode
 
 (def mode->input-items
   {:explicit
@@ -184,5 +208,3 @@
       show!))
 
 ;; (run)
-
-

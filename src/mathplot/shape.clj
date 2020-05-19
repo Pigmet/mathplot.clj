@@ -4,6 +4,8 @@
 
 (def plot-step 0.1)
 
+(def cutoff 1000)
+
 (defmulti shape->paint
   "[state-val shape]
 
@@ -36,6 +38,13 @@
   (let [col (if (string? col) (color col) col )]
     (style :foreground col :stroke strk)))
 
+(defn- abs [x] (Math/abs (float x)))
+
+(defn- valid-number? [x]
+  (and (number? x)
+       (Double/isFinite x)
+       (<= (abs x) cutoff)))
+
 (defmethod shape->paint :fn-plot
   [{w :canvas-width h :canvas-height [x y] :diff
     plot-range :plot-range all-range :all-range :as state-val}
@@ -49,7 +58,7 @@
                       (map (fn [r] [r (f r)]))
                       (map #(map * % [s s]))
                       (map #(map + % [x y]))
-                      (split-by #(-> % last Double/isFinite not))
+                      (split-by #(-> % last valid-number? not))
                       (mapcat coll->lines)
                       (map #(draw g % styl))
                       dorun)))))
