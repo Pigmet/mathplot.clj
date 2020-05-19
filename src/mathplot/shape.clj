@@ -69,10 +69,10 @@
   {:id :parameter :xfn xfn :yfn yfn})
 
 (defmethod shape->paint :parameter
-  [{w :canvas-width h :canvas-height [x y] :diff
+  [{w :canvas-width h :canvas-height [x y] :diff scaling :scale
     plot-range :plot-range all-range :all-range :as state-val}
    {xfn :xfn yfn :yfn :as shape }]
-  (let [s (/ w plot-range)
+  (let [s (/ (* w scaling) plot-range)
         styl (shape->style state-val shape)]
     (fn [c g]
       (.setSize c w h)
@@ -81,7 +81,8 @@
                       (map (fn [r] [(xfn r) (yfn r)]))
                       (map #(map * % [s s]))
                       (map #(map + % [x y]))
-                      coll->lines
+                      (split-by #(not-every? valid-number? %))
+                      (mapcat coll->lines)
                       (map #(draw g % styl))
                       dorun
                       )))))
