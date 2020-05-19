@@ -2,11 +2,10 @@
   (:gen-class)
   (:use [seesaw core font color graphics])
   (:require [mathplot.parse :refer [string->fn]]
-            [mathplot.helpers :refer [unmap centering]]
-            [mathplot.shape :refer [shape->paint new-fn-plot new-parameter-plot]]
+            [mathplot.helpers :refer [unmap centering rand-color swap-when!]]
+            [mathplot.shape :refer
+             [shape->paint new-fn-plot new-parameter-plot]]
             [swinghelp.core :refer [sset-class! sset! sget]]))
-
-;; TODO : add parameter plot 
 
 ;; state
 
@@ -17,55 +16,174 @@
    :canvas-height 500
    :shapes [{:id :axes}]
    :diff [0 0]
+   :scale 1 
    :mode :explicit
    :font-size 30
    :plot-range 10
    :all-range 100
+   :stroke 3
    })
 
 (def state (atom state-init))
+
+(defn- state-ok? [{s :scale}]
+  (<= 0.1 s 10))
 
 (defn- reset-state-keys! [& ks]
   (reset! state (merge @state (select-keys state-init ks))))
 
 (defn- reset-state! [] (reset! state state-init) )
 
-(unmap update-root-id)
+(defn- add-shapes! [& args]
+  (swap! state update :shapes concat args))
+
+(defmulti state->widget
+  "[state-val id]"
+  (fn [state-val id] id))
 
 (defmulti update-root-id
   "[root id]
+  Returns root."
+  (fn [root id] id))
 
-  Returns fn that updates root in the component specified by id."
-  identity)
+(defn- update-root [root & ids]
+  (reduce (fn [acc id] (update-root-id acc id))
+          root
+          ids))
 
-(defn- update-root
-  "Updates root according to ks. Returns root."
-  [root & ks]
-  (->> ks
-       (map update-root-id)
-       (map (fn [f] (f root)))
-       dorun)
+;;  frame
+
+(defn- make-frame []
+  (frame :width 800
+         :height 800
+         :content (border-panel
+                   :north (vertical-panel
+                           :items [(horizontal-panel :id :select-mode)
+                                   (horizontal-panel :id :buttons)
+                                   (horizontal-panel :id :input)])
+                   :center (border-panel
+                            :center (canvas :id :paint)
+                            :east (vertical-panel :id :display)
+                            :south (horizontal-panel :id :scaling)))))
+
+(defn- select-mode []
+  (let [group (button-group)
+        items (->> plot-modes
+                   (map #(radio :text (name %)
+                                :class :text
+                                :group group)))
+        panel (horizontal-panel :items items)]
+    (listen group :action
+            (fn [e]
+              (let [mode (-> group selection text keyword)]
+                (swap! state assoc :mode mode)
+                (update-root (to-root e) :input :font-size))))
+    [panel]))
+
+(defn- buttons []
+  (let [coll1   (->> [:reset :close]
+                     (map #(button :id % :text (name %) :class :text)))
+        coll2   (->> [["+" :up] ["-" :down]]
+                     (map (fn [[s id]]
+                            (button :text s :class :text :id id))))]
+    (concat coll1 coll2)))
+
+;; parseing
+
+(defmethod update-root-id :paint [root _]
+  (let [{:keys [shapes]} @state]
+    (sset! root [:paint :paint]
+           (fn [c g]
+             (->> shapes
+                  (map #(shape->paint @state %))
+                  (map (fn [f] (f c g)))
+                  dorun)))))
+
+(defn- parse-explicit-input
+  "Parse user input for explicit function, registers it
+  to state and updates graph."
+  [e]
+  (let [root (to-root e)
+        s (sget root [:explicit :text])]
+    (if-let [f (string->fn s)]
+      (do (swap! state update :shapes conj
+                 (assoc (new-fn-plot f)
+                        :color (rand-color)
+                        :label (format "f(x)=%s" s)))
+          (update-root root :paint :display))
+      (alert "incorrect input"))))
+
+(defn- parse-parameter-input [e]
+  (let [root (to-root e)
+        xfn-s (-> e to-root (sget [:xfn :text]))
+        yfn-s (-> e to-root (sget [:yfn :text]))
+        xfn (string->fn xfn-s)
+        yfn (string->fn yfn-s)]
+    (if (and xfn yfn)
+      (do
+        (swap! state update :shapes conj
+               (assoc (new-parameter-plot xfn yfn )
+                      :color (rand-color)
+                      :label (format "x=%s, y=%s" xfn-s yfn-s)))
+        (update-root root :paint :display))
+      (alert "incorrect input"))))
+
+;; display
+
+(defmethod update-root-id :display [root _]
+  (let [items (->> @state
+                   :shapes
+                   (map (fn [{s :label col :color}]
+                          (doto (label :text s :class :text)
+                            (.setForeground col)))))]
+    (sset! root [:display :items] items)
+    (update-root root :font-size)))
+
+;; switch mode
+
+(def mode->input-items
+  {:explicit
+   [(horizontal-panel
+     :items [(label :text "f(x)" :class :text)
+             (text :id :explicit :class :text
+                   :listen [:action parse-explicit-input])])]
+
+   :parameter
+   [(vertical-panel
+     :items
+     (->> [["x" :xfn] ["y" :yfn]]
+          (map (fn [[s id]]
+                 (horizontal-panel
+                  :items [(label :text s :class :text)
+                          (text :id id :class :text
+                                :listen [:action parse-parameter-input])])))))]})
+
+(defmethod update-root-id :input [root _]
+  (sset! root [:input :items] (-> @state :mode mode->input-items)))
+
+(defmethod update-root-id :font-size [root _]
+  (sset-class! root [:text :font] (font :size (:font-size @state))))
+
+(defn- build [root]
+  (-> root
+      (sset! [:buttons :items] (buttons))
+      (sset! [:select-mode :items] (select-mode))
+      (update-root :input :font-size)))
+
+(defn- add-button-behavior [root]
+  (->>{:close (fn [e] (dispose! root))
+       :reset (fn [e] (reset-state!) (update-root root :paint))
+       :up (fn [e]
+             (when
+                 (swap-when! state state-ok? update :scale * 1.3)
+               (update-root root :paint)))
+       :down (fn [e]
+               (when
+                   (swap-when! state state-ok? update :scale / 1.3)
+                 (update-root root :paint)))}
+      (map (fn [[k v]] (listen (sget root k) :mouse-clicked v)))
+      dorun)
   root)
-
-(defn- add-shapes! [& shapes]
-  (swap! state update :shapes concat shapes))
-
-;; state object
-
-(defmulti state->object
-  "[state-val id]
-
-  Takes current state value and id ,returns corresponding object."
-  (fn [state-val id] id))
-
-(defmethod state->object :shapes
-  [v _]
-  (let [paint-fns (map #(shape->paint @state %) (:shapes @state))]
-    (fn [c g]
-      (dorun (map (fn [paint] (paint c g)) paint-fns)))))
-
-(defmethod update-root-id :shapes [_]
-  (fn [root]  (sset! root [:paint :paint] (state->object @state :shapes ))))
 
 ;; translate 
 
@@ -82,7 +200,7 @@
             (fn [e]
               (swap! a assoc :end (get-pos e))
               (let [{:keys [start end]} @a
-                    flip-y (fn [[x y]] [x ( - y)])
+                    flip-y (fn [[x y]] [x (- y)])
                     start (flip-y start)
                     end (flip-y end)
                     diff1 (map - end start)
@@ -90,127 +208,18 @@
                     ret (map + (:diff @state) diff2)]
                 (swap! a assoc :diff diff1)
                 (swap! state assoc :diff ret)
-                (update-root root :shapes))))
+                (update-root root :paint))))
     root))
-
-;; frame
-
-(defn- make-frame []
-  (frame :width 600
-         :height 600
-         :content
-         (border-panel
-          :north
-          (vertical-panel
-           :items [(horizontal-panel :id :mode-select)
-                   (horizontal-panel :id :buttons)])
-          :center
-          (border-panel
-           :id :main
-           :north (vertical-panel :id :input-part)
-           :center (canvas :id :paint)))))
-
-;; buttons
-
-(defn- make-buttons []
-  (->> [:reset :close]
-       (map #(button :id % :text (name %) :class :text))))
-
-;; input ui
-
-(defn- input-explicit [e]
-  [e]
-  (if-let [f (string->fn (text e))]
-    (do (add-shapes! (new-fn-plot f ))
-        (update-root (to-root e) :shapes))
-    (alert (format "incorrect input: %s" (text e)))))
-
-(defn- input-parameter [e]
-  (let [root (to-root e)
-        xfn-s (sget root [:xfn :text])
-        yfn-s (sget root [:yfn :text])
-        xfn (string->fn xfn-s)
-        yfn (string->fn yfn-s)]
-    (println xfn-s yfn-s)
-    (if (and xfn yfn)
-      (do
-        (add-shapes! (new-parameter-plot xfn yfn))
-        (update-root root :shapes))
-      (alert (format "incorrect input: xfn %s, yfn %s" xfn-s yfn-s)))))
-
-(def input-ui-table
-  {:explicit
-   [(horizontal-panel :items [(label :text "f(x)" :class :text)
-                              (text :id :input-explicit
-                                    :class :text
-                                    :listen
-                                    [:action input-explicit])])]
-   :parameter
-   [(vertical-panel
-     :items (->> [["x" :xfn] ["y" :yfn]]
-                 (map (fn [[s id]]
-                        (horizontal-panel
-                         :items
-                         [(label :text s :class :text)
-                          (text :id id :class :text
-                                :listen
-                                [:action input-parameter])])))))]})
-
-
-(defn- mode-select-part []
-  (let [group (button-group)
-        panel (horizontal-panel
-               :items (->> plot-modes
-                           (map #(radio :text (name %)
-                                        :class :text
-                                        :group group))))]
-    (listen group :action
-            (fn [e]
-              (let [mode (-> group selection text keyword)]
-                (swap! state assoc :mode mode)
-                (update-root (to-root e) :input-ui :font-size))))
-    panel))
-
-(defmethod state->object :input-ui [{:keys [mode]} _]
-  (get input-ui-table mode))
-
-(defmethod update-root-id :input-ui [_]
-  (fn [root]
-    (sset! root [:input-part :items] (state->object @state :input-ui))))
-
-(defmethod update-root-id :font-size [ _]
-  (fn [root]
-    (sset-class! root [:text :font]
-                 (font :size (:font-size @state)))))
-
-;; action
-
-(defn- add-button-behavior [root]
-  (->>{:close (fn [e] (dispose! root))
-       :reset (fn [e] (reset-state!)
-                (update-root root :shapes))}
-      (map (fn [[k v]]
-             (listen (sget root k) :mouse-clicked v)))
-      dorun)
-  root)
-
-;; main 
-
-(defn- build []
-  (-> (make-frame)
-      (sset! [:buttons :items] (make-buttons))
-      (sset! [:mode-select :items] [(mode-select-part)])
-      (update-root :input-ui :font-size :shapes)))
 
 (defn- run []
   (reset-state!)
-  (-> (build)
+  (-> (make-frame)
+      build
+      add-button-behavior
       add-translate-behavior
-      add-button-behavior      
       show!))
 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
   (run))
-

@@ -1,8 +1,10 @@
 (ns mathplot.shape
-  (:use [seesaw color  graphics])
+  (:use [seesaw color graphics])
   (:require [mathplot.helpers :refer [split-by centering]]))
 
 (def plot-step 0.1)
+
+(def cutoff 1000)
 
 (defmulti shape->paint
   "[state-val shape]
@@ -30,11 +32,27 @@
        (partition 4)
        (map #(apply line %))))
 
+(defn- shape->style
+  "Takes state-val and shape, returns style."
+  [{strk :stroke}   {col :color  :or {col "black"}}]
+  (let [col (if (string? col) (color col) col )]
+    (style :foreground col :stroke strk)))
+
+(defn- abs [x] (Math/abs (float x)))
+
+(defn- valid-number? [x]
+  (try
+    (and (number? x)
+         (Double/isFinite x)
+         (<= (abs x) cutoff))
+    (catch Exception ex nil)))
+
 (defmethod shape->paint :fn-plot
-  [{w :canvas-width h :canvas-height [x y] :diff
-    plot-range :plot-range all-range :all-range}
-   {f :f}]
-  (let [s (/ w plot-range)]
+  [{w :canvas-width h :canvas-height [x y] :diff scaling :scale
+    plot-range :plot-range all-range :all-range :as state-val}
+   {f :f :as shape}]
+  (let [s (/ (* w scaling) plot-range)
+        styl (shape->style state-val shape)]
     (fn [c g]
       (.setSize c w h)
       (centering g w h
@@ -42,9 +60,9 @@
                       (map (fn [r] [r (f r)]))
                       (map #(map * % [s s]))
                       (map #(map + % [x y]))
-                      (split-by #(-> % last Double/isFinite not))
+                      (split-by #(-> % last valid-number? not))
                       (mapcat coll->lines)
-                      (map #(draw g % (style :foreground (color "black"))))
+                      (map #(draw g % styl))
                       dorun)))))
 
 (defn new-parameter-plot [xfn yfn]
@@ -52,11 +70,10 @@
 
 (defmethod shape->paint :parameter
   [{w :canvas-width h :canvas-height [x y] :diff
-    plot-range :plot-range all-range :all-range}
-   {xfn :xfn yfn :yfn col :color strk :stroke
-    :or {col "black" strk 1} }]
+    plot-range :plot-range all-range :all-range :as state-val}
+   {xfn :xfn yfn :yfn :as shape }]
   (let [s (/ w plot-range)
-        styl (style :foreground (color col) :stroke strk)]
+        styl (shape->style state-val shape)]
     (fn [c g]
       (.setSize c w h)
       (centering g w h
