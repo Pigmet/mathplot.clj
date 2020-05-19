@@ -90,12 +90,27 @@
 (defn new-polar-plot [f]
   {:id :polar :f f})
 
-(defmethod shape->paint :polar 
-  [state-val {f :f col :color}]
-  (let [xfn (fn [x] (* (Math/cos x) (f x)))
-        yfn (fn [x] (* (Math/sin x) ( f x)))
-        shape (assoc (new-parameter-plot xfn yfn) :color col)]
-    (shape->paint state-val shape)))
+(defmethod shape->paint :polar
+  [{w :canvas-width h :canvas-height [x y] :diff scaling :scale
+    plot-range :plot-range  :as state-val}
+   {f :f :as shape}]
+  (let [s (/ (* w scaling) plot-range)
+        styl (shape->style state-val shape)
+        xfn (fn [x] (* (f x) (Math/cos x)))
+        yfn (fn [x] (* ( f x) (Math/sin x)))
+        interval (range 0 (* 2 Math/PI) (/ plot-step 10))]
+    (fn [c g]
+      (.setSize c w h)
+      (centering g w h
+                 (->> interval
+                      (map (fn [r] [(xfn r) (yfn r)]))
+                      (map #(map * % [s s]))
+                      (map #(map + % [x y]))
+                      (split-by #(not-every? valid-number? %))
+                      (mapcat coll->lines)
+                      (map #(draw g % styl))
+                      dorun
+                      )))))
 
 
 
